@@ -1,0 +1,26 @@
+<UserControl
+    x:Class="DesktopPanels.Views.WeatherArt"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Width="64" Height="64">
+        <Ellipse x:Name="Sun" Width="28" Height="28" Fill="#FFE2A21A" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6,6,0,0" />
+        <Ellipse x:Name="Cloud" Width="36" Height="22" Fill="#F2FFFFFF" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,16" />
+        <Ellipse x:Name="CloudSmall" Width="18" Height="14" Fill="#F2FFFFFF" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,22,28" />
+        <StackPanel x:Name="Drops" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,4">
+            <Ellipse Width="4" Height="8" Fill="#FF8EC8FF" />
+            <Ellipse Width="4" Height="8" Fill="#FF8EC8FF" />
+            <Ellipse Width="4" Height="8" Fill="#FF8EC8FF" />
+        </StackPanel>
+        <StackPanel x:Name="Flakes" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,4">
+            <Ellipse Width="5" Height="5" Fill="White" />
+            <Ellipse Width="5" Height="5" Fill="White" />
+            <Ellipse Width="5" Height="5" Fill="White" />
+        </StackPanel>
+        <TextBlock x:Name="Bolt" Text="&#x26A1;" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,0" />
+        <StackPanel x:Name="FogBands" VerticalAlignment="Center" Spacing="4" Margin="8,0">
+            <Rectangle Height="3" Fill="#CCFFFFFF" RadiusX="1" RadiusY="1" />
+            <Rectangle Height="3" Fill="#99FFFFFF" RadiusX="1" RadiusY="1" Margin="6,0,0,0" />
+            <Rectangle Height="3" Fill="#CCFFFFFF" RadiusX="1" RadiusY="1" />
+        </StackPanel>
+    </Grid>
+</UserControl>

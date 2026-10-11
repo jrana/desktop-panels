@@ -1,0 +1,68 @@
+<Window
+    x:Class="DesktopPanels.Views.PanelWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid x:Name="Root" Background="Transparent"
+          PointerEntered="OnRootEntered" PointerExited="OnRootExited"
+          PointerPressed="OnRootPressed" PointerMoved="OnRootMoved" PointerReleased="OnRootReleased" PointerCaptureLost="OnRootReleased">
+        <Grid.Resources>
+            <Style x:Key="FlatIconButton" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Width" Value="32" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="8" Width="32" Height="32">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </Grid.Resources>
+        <Border x:Name="Chrome" BorderThickness="0" Background="Transparent">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid x:Name="Header" Height="40">
+                    <TextBlock x:Name="TitleText" VerticalAlignment="Center" Margin="14,0,112,0"
+                               Foreground="White" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                </Grid>
+                <Grid x:Name="BodyHost" Grid.Row="1" />
+                <StackPanel x:Name="HoverActions" Grid.RowSpan="2" Orientation="Horizontal" Spacing="2"
+                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,8,0"
+                            Opacity="0" Visibility="Collapsed" IsHitTestVisible="False">
+                    <Button x:Name="AddButton" Style="{StaticResource FlatIconButton}"
+                            PointerEntered="OnActionEntered" PointerExited="OnActionExited" AutomationProperties.Name="Add panel">
+                        <FontIcon x:Name="AddIcon" Glyph="&#xE710;" FontSize="15" FontFamily="Segoe MDL2 Assets" Foreground="#F2FFFFFF" />
+                        <Button.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedRight" Opening="OnAddMenuOpening" Closed="OnAddMenuClosed">
+                                <MenuFlyoutItem Text="Shortcut panel" Tag="Icons" Click="OnAddPanel" />
+                                <MenuFlyoutItem Text="Folder" Tag="Folder" Click="OnAddPanel" />
+                                <MenuFlyoutItem Text="Slideshow" Tag="Slideshow" Click="OnAddPanel" />
+                                <MenuFlyoutItem Text="Clock" Tag="Clock" Click="OnAddPanel" />
+                                <MenuFlyoutItem Text="Weather" Tag="Weather" Click="OnAddPanel" />
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                    <Button x:Name="SettingsButton" Style="{StaticResource FlatIconButton}" Click="OnSettings"
+                            PointerEntered="OnActionEntered" PointerExited="OnActionExited" AutomationProperties.Name="Settings">
+                        <FontIcon x:Name="SettingsIcon" Glyph="&#xE713;" FontSize="15" FontFamily="Segoe MDL2 Assets" Foreground="#F2FFFFFF" />
+                    </Button>
+                    <Button x:Name="RemoveButton" Style="{StaticResource FlatIconButton}" Click="OnRemove"
+                            PointerEntered="OnActionEntered" PointerExited="OnActionExited" AutomationProperties.Name="Remove">
+                        <FontIcon x:Name="RemoveIcon" Glyph="&#xE74D;" FontSize="15" FontFamily="Segoe MDL2 Assets" Foreground="#F2FFFFFF" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+        <Border x:Name="SnapCue" BorderBrush="#E6FFFFFF" BorderThickness="0" IsHitTestVisible="False" />
+    </Grid>
+</Window>

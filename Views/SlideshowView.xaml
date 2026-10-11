@@ -1,0 +1,12 @@
+<UserControl
+    x:Class="DesktopPanels.Views.SlideshowView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Image x:Name="PhotoA" Stretch="UniformToFill" Opacity="1" />
+        <Image x:Name="PhotoB" Stretch="UniformToFill" Opacity="0" />
+        <TextBlock x:Name="EmptyText" Text="Choose a folder in panel settings" HorizontalAlignment="Center"
+                   VerticalAlignment="Center" Foreground="#EEFFFFFF" FontSize="14" TextWrapping="Wrap"
+                   TextAlignment="Center" Margin="20" />
+    </Grid>
+</UserControl>
