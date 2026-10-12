@@ -86,8 +86,6 @@ public sealed partial class PanelWindow : Window
         ApplyChrome();
     }
 
-    public bool IsInteracting => _tracking;
-
     public IntPtr Handle => _hwnd;
 
     public RectInt32 OuterBounds => new(_appWindow.Position.X, _appWindow.Position.Y, _appWindow.Size.Width, _appWindow.Size.Height);
@@ -95,18 +93,6 @@ public sealed partial class PanelWindow : Window
     public IntPtr SettingsHandle => _settings?.Handle ?? IntPtr.Zero;
 
     public void AllowClose() => _allowClose = true;
-
-    public void Sink()
-    {
-        if (!NativeWindow.NeedsDesktopPin(_hwnd, PanelManager.IsPanelWindow))
-        {
-            return;
-        }
-
-        NativeWindow.SetWindowPos(_hwnd, NativeWindow.HwndBottom, 0, 0, 0, 0,
-            NativeWindow.SwpNoMove | NativeWindow.SwpNoSize | NativeWindow.SwpNoActivate);
-        NativeWindow.SuppressFrame(_hwnd);
-    }
 
     void OnActivated(object sender, WindowActivatedEventArgs args)
     {
