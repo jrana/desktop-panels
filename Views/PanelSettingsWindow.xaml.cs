@@ -41,6 +41,11 @@ public sealed partial class PanelSettingsWindow : UserControl
     CheckBox? _showSeconds;
     CheckBox? _showCity;
     ComboBox? _clockFont;
+    ComboBox? _dateFace;
+    ComboBox? _dateFormat;
+    CheckBox? _showWeekday;
+    ComboBox? _dateFont;
+    TextBlock? _dateFormatLabel;
     TextBox? _city;
     TextBox? _weatherQuery;
     ListBox? _places;
@@ -253,6 +258,41 @@ public sealed partial class PanelSettingsWindow : UserControl
             Form.Children.Add(FieldRow(fontLabel, _clockFont));
         }
 
+        if (_model.Kind == PanelKind.Date)
+        {
+            _dateFace = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch, MaxHeight = 36, MinWidth = 140 };
+            _dateFace.Items.Add("Date");
+            _dateFace.Items.Add("Calendar");
+            _dateFace.SelectedItem = _model.DateFace.Equals("Calendar", StringComparison.OrdinalIgnoreCase) ? "Calendar" : "Date";
+            var displayLabel = Label("Display");
+            displayLabel.VerticalAlignment = VerticalAlignment.Center;
+            Form.Children.Add(FieldRow(displayLabel, _dateFace));
+            _dateFormat = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch, MaxHeight = 36, MinWidth = 160, MaxDropDownHeight = 280 };
+            foreach (var choice in DateFormats)
+            {
+                _dateFormat.Items.Add(choice);
+            }
+
+            var formatMatch = _dateFormat.Items.OfType<DateFormatChoice>().FirstOrDefault(choice => choice.Pattern.Equals(_model.DateFormat, StringComparison.Ordinal));
+            if (formatMatch is null)
+            {
+                formatMatch = new DateFormatChoice(string.IsNullOrWhiteSpace(_model.DateFormat) ? "MMM DD, YYYY" : _model.DateFormat, string.IsNullOrWhiteSpace(_model.DateFormat) ? "MMM dd, yyyy" : _model.DateFormat);
+                _dateFormat.Items.Insert(0, formatMatch);
+            }
+
+            _dateFormat.SelectedItem = formatMatch;
+            _dateFormatLabel = Label("Format");
+            _dateFormatLabel.VerticalAlignment = VerticalAlignment.Center;
+            Form.Children.Add(FieldRow(_dateFormatLabel, _dateFormat));
+            _showWeekday = new CheckBox { Content = "Show day name", IsChecked = _model.ShowWeekday, VerticalAlignment = VerticalAlignment.Center };
+            Form.Children.Add(_showWeekday);
+            _dateFont = FontCombo(_model.DateFontFamily);
+            var dateFontLabel = Label("Font");
+            dateFontLabel.VerticalAlignment = VerticalAlignment.Center;
+            Form.Children.Add(FieldRow(dateFontLabel, _dateFont));
+            SyncDateOptions();
+        }
+
         if (_model.Kind == PanelKind.Weather)
         {
             _weatherQuery = new TextBox { PlaceholderText = "Search for a city", Text = _model.City };
@@ -329,6 +369,31 @@ public sealed partial class PanelSettingsWindow : UserControl
         if (_clockFont is not null)
         {
             _clockFont.SelectionChanged += (_, _) => ApplyLive(true);
+        }
+
+        if (_dateFace is not null)
+        {
+            _dateFace.SelectionChanged += (_, _) =>
+            {
+                SyncDateOptions();
+                ApplyLive(true);
+            };
+        }
+
+        if (_dateFormat is not null)
+        {
+            _dateFormat.SelectionChanged += (_, _) => ApplyLive(true);
+        }
+
+        if (_showWeekday is not null)
+        {
+            _showWeekday.Checked += (_, _) => ApplyLive(true);
+            _showWeekday.Unchecked += (_, _) => ApplyLive(true);
+        }
+
+        if (_dateFont is not null)
+        {
+            _dateFont.SelectionChanged += (_, _) => ApplyLive(true);
         }
 
         if (_places is not null)
@@ -599,6 +664,26 @@ public sealed partial class PanelSettingsWindow : UserControl
             _model.ClockFontFamily = fontName;
         }
 
+        if (_dateFace?.SelectedItem is string dateFace)
+        {
+            _model.DateFace = dateFace;
+        }
+
+        if (_dateFormat?.SelectedItem is DateFormatChoice dateFormat)
+        {
+            _model.DateFormat = dateFormat.Pattern;
+        }
+
+        if (_showWeekday is not null)
+        {
+            _model.ShowWeekday = _showWeekday.IsChecked == true;
+        }
+
+        if (_dateFont?.SelectedItem is string dateFontName)
+        {
+            _model.DateFontFamily = dateFontName;
+        }
+
         if (_places?.SelectedItem is GeoPlace place)
         {
             _model.City = place.City;
@@ -644,6 +729,10 @@ public sealed partial class PanelSettingsWindow : UserControl
         _snapshot.ClockFontFamily = _model.ClockFontFamily;
         _snapshot.ClockFontSize = _model.ClockFontSize;
         _snapshot.ClockFace = _model.ClockFace;
+        _snapshot.DateFace = _model.DateFace;
+        _snapshot.DateFormat = _model.DateFormat;
+        _snapshot.ShowWeekday = _model.ShowWeekday;
+        _snapshot.DateFontFamily = _model.DateFontFamily;
         _snapshot.City = _model.City;
         _snapshot.Latitude = _model.Latitude;
         _snapshot.Longitude = _model.Longitude;
@@ -668,6 +757,10 @@ public sealed partial class PanelSettingsWindow : UserControl
         _model.ClockFontFamily = _snapshot.ClockFontFamily;
         _model.ClockFontSize = _snapshot.ClockFontSize;
         _model.ClockFace = _snapshot.ClockFace;
+        _model.DateFace = _snapshot.DateFace;
+        _model.DateFormat = _snapshot.DateFormat;
+        _model.ShowWeekday = _snapshot.ShowWeekday;
+        _model.DateFontFamily = _snapshot.DateFontFamily;
         _model.City = _snapshot.City;
         _model.Latitude = _snapshot.Latitude;
         _model.Longitude = _snapshot.Longitude;
@@ -685,11 +778,66 @@ public sealed partial class PanelSettingsWindow : UserControl
         }
     }
 
+    void SyncDateOptions()
+    {
+        var calendar = _dateFace?.SelectedItem as string == "Calendar";
+        if (_dateFormat is not null)
+        {
+            _dateFormat.IsEnabled = !calendar;
+        }
+
+        if (_dateFormatLabel is not null)
+        {
+            _dateFormatLabel.Opacity = calendar ? 0.45 : 1;
+        }
+
+        if (_showWeekday is not null)
+        {
+            _showWeekday.IsEnabled = !calendar;
+        }
+    }
+
+    ComboBox FontCombo(string selected)
+    {
+        var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch, MaxHeight = 36, MinWidth = 160, MaxDropDownHeight = 280 };
+        var chosen = string.IsNullOrWhiteSpace(selected) ? "Segoe UI Variable Display" : selected;
+        foreach (var family in new InstalledFontCollection().Families.Select(font => font.Name).Distinct().OrderBy(name => name))
+        {
+            combo.Items.Add(family);
+        }
+
+        if (!combo.Items.OfType<string>().Any(name => name.Equals(chosen, StringComparison.OrdinalIgnoreCase)))
+        {
+            combo.Items.Insert(0, chosen);
+        }
+
+        combo.SelectedItem = combo.Items.OfType<string>().First(name => name.Equals(chosen, StringComparison.OrdinalIgnoreCase));
+        return combo;
+    }
+
     static TextBlock Label(string text) => new()
     {
         Text = text,
         FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
     };
+
+    static readonly DateFormatChoice[] DateFormats =
+    [
+        new("MMM DD, YYYY", "MMM dd, yyyy"),
+        new("MMM D, YYYY", "MMM d, yyyy"),
+        new("MMMM D, YYYY", "MMMM d, yyyy"),
+        new("DD MMM YYYY", "dd MMM yyyy"),
+        new("D MMMM YYYY", "d MMMM yyyy"),
+        new("MM/DD/YYYY", "MM/dd/yyyy"),
+        new("DD/MM/YYYY", "dd/MM/yyyy"),
+        new("YYYY-MM-DD", "yyyy-MM-dd"),
+        new("dddd, MMMM D", "dddd, MMMM d")
+    ];
+
+    sealed record DateFormatChoice(string Label, string Pattern)
+    {
+        public override string ToString() => Label;
+    }
 
     sealed record ZoneChoice(string? Id, string Label)
     {

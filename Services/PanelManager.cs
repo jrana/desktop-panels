@@ -102,6 +102,7 @@ public static class PanelManager
                 PanelKind.Slideshow => "Slideshow",
                 PanelKind.Clock => "Clock",
                 PanelKind.Weather => "Weather",
+                PanelKind.Date => "Date",
                 _ => "Panel"
             },
             ShowTitle = true,
@@ -111,6 +112,7 @@ public static class PanelManager
                 PanelKind.Weather => "#C47B2B",
                 PanelKind.Slideshow => "#A84865",
                 PanelKind.Folder => "#6B7C93",
+                PanelKind.Date => "#2C2C2C",
                 _ => "#2F6FED"
             }
         };
@@ -120,6 +122,7 @@ public static class PanelManager
             PanelKind.Clock => 300,
             PanelKind.Weather => 380,
             PanelKind.Slideshow => 520,
+            PanelKind.Date => 360,
             _ => 460
         };
         model.Height = kind switch
@@ -127,6 +130,7 @@ public static class PanelManager
             PanelKind.Clock => 170,
             PanelKind.Weather => model.ShowSevenDay ? 300 : 180,
             PanelKind.Slideshow => 320,
+            PanelKind.Date => 440,
             _ => 420
         };
 
