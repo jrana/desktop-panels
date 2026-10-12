@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.WindowsRuntime;
 using DesktopPanels.Models;
 using Microsoft.UI.Xaml.Media.Imaging;
-using Windows.Storage.Streams;
 
 namespace DesktopPanels.Services;
 
@@ -11,11 +11,53 @@ public static class ShellDesktop
     const uint ShgfiLargeIcon = 0x000000000;
     const string RecycleBin = "::{645FF040-5081-101B-9F08-00AA002F954E}";
 
+    public readonly record struct ListedIcon(string Path, string Name);
+
+    static readonly object IconGate = new();
+    static readonly Dictionary<string, byte[]?> PngCache = new(StringComparer.OrdinalIgnoreCase);
     static readonly Dictionary<string, BitmapImage?> IconCache = new(StringComparer.OrdinalIgnoreCase);
 
-    public static IReadOnlyList<DesktopIcon> Enumerate()
+    public static IReadOnlyList<ListedIcon> ListDesktop()
     {
-        var raw = new List<(string Path, string Name)>();
+        var listed = CollectDesktop();
+        foreach (var icon in listed)
+        {
+            PngFor(icon.Path);
+        }
+
+        return listed;
+    }
+
+    public static void PrefetchFolder(string? folder)
+    {
+        foreach (var icon in CollectFolder(folder))
+        {
+            PngFor(icon.Path);
+        }
+    }
+
+    public static IReadOnlyList<DesktopIcon> Enumerate() => Materialize(ListDesktop());
+
+    public static IReadOnlyList<DesktopIcon> Materialize(IReadOnlyList<ListedIcon> listed)
+    {
+        var results = new List<DesktopIcon>(listed.Count);
+        foreach (var icon in listed)
+        {
+            results.Add(new DesktopIcon
+            {
+                ParsingName = icon.Path,
+                DisplayName = icon.Name,
+                Icon = IconFor(icon.Path)
+            });
+        }
+
+        results.Sort((a, b) => StringComparer.CurrentCultureIgnoreCase.Compare(a.DisplayName, b.DisplayName));
+        return results;
+    }
+
+    static List<ListedIcon> CollectDesktop()
+    {
+        var raw = new List<ListedIcon>();
         try
         {
             var type = Type.GetTypeFromProgID("Shell.Application");
@@ -31,7 +73,7 @@ public static class ShellDesktop
                         string name = item.Name;
                         if (!string.IsNullOrWhiteSpace(path))
                         {
-                            raw.Add((path, string.IsNullOrWhiteSpace(name) ? Path.GetFileName(path) : name));
+                            raw.Add(new ListedIcon(path, string.IsNullOrWhiteSpace(name) ? Path.GetFileName(path) : name));
                         }
                     }
                     catch
@@ -68,36 +110,32 @@ public static class ShellDesktop
         var hidden = ReadHiddenSpecialIcons();
         var shown = ReadShownSpecialIcons();
         var desktopDirs = DesktopDirectories();
-        var results = new List<DesktopIcon>();
+        var results = new List<ListedIcon>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (path, name) in raw)
+        foreach (var icon in raw)
         {
-            if (!seen.Add(path) || !ShouldInclude(path, desktopDirs, hidden, shown))
+            if (!seen.Add(icon.Path) || !ShouldInclude(icon.Path, desktopDirs, hidden, shown))
             {
                 continue;
             }
 
-            results.Add(new DesktopIcon
-            {
-                ParsingName = path,
-                DisplayName = name,
-                Icon = IconFor(path)
-            });
+            results.Add(icon);
         }
 
-        results.Sort((a, b) => StringComparer.CurrentCultureIgnoreCase.Compare(a.DisplayName, b.DisplayName));
         return results;
     }
 
-    public static IReadOnlyList<DesktopIcon> EnumerateFolder(string? folder)
+    public static IReadOnlyList<DesktopIcon> EnumerateFolder(string? folder) => Materialize(CollectFolder(folder));
+
+    static List<ListedIcon> CollectFolder(string? folder)
     {
         if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
         {
             return [];
         }
 
-        var results = new List<DesktopIcon>();
+        var results = new List<ListedIcon>();
         try
         {
             foreach (var path in Directory.EnumerateFileSystemEntries(folder))
@@ -108,12 +146,7 @@ public static class ShellDesktop
                     continue;
                 }
 
-                results.Add(new DesktopIcon
-                {
-                    ParsingName = path,
-                    DisplayName = Path.GetFileName(path),
-                    Icon = IconFor(path)
-                });
+                results.Add(new ListedIcon(path, Path.GetFileName(path)));
             }
         }
         catch
@@ -121,7 +154,6 @@ public static class ShellDesktop
             return results;
         }
 
-        results.Sort((a, b) => StringComparer.CurrentCultureIgnoreCase.Compare(a.DisplayName, b.DisplayName));
         return results;
     }
 
@@ -187,9 +219,9 @@ public static class ShellDesktop
         return false;
     }
 
-    static List<(string Path, string Name)> FallbackFiles()
+    static List<ListedIcon> FallbackFiles()
     {
-        var list = new List<(string, string)>();
+        var list = new List<ListedIcon>();
         foreach (var dir in DesktopDirectories())
         {
             if (!Directory.Exists(dir))
@@ -199,11 +231,11 @@ public static class ShellDesktop
 
             foreach (var path in Directory.EnumerateFileSystemEntries(dir))
             {
-                list.Add((path, Path.GetFileName(path)));
+                list.Add(new ListedIcon(path, Path.GetFileName(path)));
             }
         }
 
-        list.Add((RecycleBin, "Recycle Bin"));
+        list.Add(new ListedIcon(RecycleBin, "Recycle Bin"));
         return list;
     }
 
@@ -291,12 +323,41 @@ public static class ShellDesktop
             return cached;
         }
 
-        var image = LoadIcon(path);
+        var image = ImageFromPng(PngFor(path));
         IconCache[path] = image;
         return image;
     }
 
-    static BitmapImage? LoadIcon(string path)
+    static byte[]? PngFor(string path)
+    {
+        lock (IconGate)
+        {
+            if (PngCache.TryGetValue(path, out var cached))
+            {
+                return cached;
+            }
+
+            var png = RenderPng(path);
+            PngCache[path] = png;
+            return png;
+        }
+    }
+
+    static BitmapImage? ImageFromPng(byte[]? png)
+    {
+        if (png is null || png.Length == 0)
+        {
+            return null;
+        }
+
+        using var memory = new MemoryStream(png, writable: false);
+        using var stream = memory.AsRandomAccessStream();
+        var image = new BitmapImage();
+        image.SetSource(stream);
+        return image;
+    }
+
+    static byte[]? RenderPng(string path)
     {
         var info = new ShFileInfo();
         var handle = SHGetFileInfo(path, 0, ref info, (uint)Marshal.SizeOf<ShFileInfo>(), ShgfiIcon | ShgfiLargeIcon);
@@ -311,19 +372,7 @@ public static class ShellDesktop
             using var bitmap = icon.ToBitmap();
             using var stream = new MemoryStream();
             bitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
-            var ras = new InMemoryRandomAccessStream();
-            using (var writer = new DataWriter(ras.GetOutputStreamAt(0)))
-            {
-                writer.WriteBytes(stream.ToArray());
-                writer.StoreAsync().AsTask().GetAwaiter().GetResult();
-                writer.FlushAsync().AsTask().GetAwaiter().GetResult();
-                writer.DetachStream();
-            }
-
-            ras.Seek(0);
-            var image = new BitmapImage();
-            image.SetSource(ras);
-            return image;
+            return stream.ToArray();
         }
         catch
         {

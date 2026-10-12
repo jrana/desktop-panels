@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using DesktopPanels.Models;
 using DesktopPanels.Views;
 using Microsoft.UI.Dispatching;
@@ -16,6 +17,10 @@ public static class PanelManager
     static TrayIcon? _tray;
     static DispatcherQueueTimer? _maintainTimer;
     static DispatcherQueueTimer? _iconTimer;
+    static DispatcherQueue? _dispatcher;
+    static readonly BlockingCollection<Action> ScanQueue = new();
+    static Thread? _scanThread;
+    static int _scanPending;
     static bool _quitting;
     static Mutex? _mutex;
 
@@ -70,34 +75,15 @@ public static class PanelManager
         _tray = new TrayIcon();
         _tray.Show();
 
-        var queue = DispatcherQueue.GetForCurrentThread();
-        _maintainTimer = queue.CreateTimer();
+        _dispatcher = DispatcherQueue.GetForCurrentThread();
+        _maintainTimer = _dispatcher.CreateTimer();
         _maintainTimer.Interval = TimeSpan.FromMilliseconds(700);
         _maintainTimer.Tick += (_, _) => MaintainDesktop();
         _maintainTimer.Start();
 
-        _iconTimer = queue.CreateTimer();
+        _iconTimer = _dispatcher.CreateTimer();
         _iconTimer.Interval = TimeSpan.FromSeconds(4);
-        _iconTimer.Tick += (_, _) =>
-        {
-            try
-            {
-                if (SyncDesktopIcons())
-                {
-                    LayoutStore.Save(_layout);
-                    AppState.NotifyIconsChanged();
-                }
-
-                foreach (var window in _windows.Values)
-                {
-                    window.RefreshLiveContent();
-                }
-            }
-            catch
-            {
-                // A desktop scan can fail while Explorer is restarting.
-            }
-        };
+        _iconTimer.Tick += (_, _) => RequestDesktopScan();
         _iconTimer.Start();
     }
 
@@ -271,8 +257,6 @@ public static class PanelManager
         return bounds;
     }
 
-    public static bool AnyInteracting() => _windows.Values.Any(window => window.IsInteracting);
-
     public static bool IsPanelWindow(IntPtr hwnd)
     {
         foreach (var window in _windows.Values)
@@ -349,17 +333,6 @@ public static class PanelManager
         }
     }
 
-    public static void SinkToDesktop()
-    {
-        foreach (var window in _windows.Values)
-        {
-            if (!window.IsInteracting)
-            {
-                window.Sink();
-            }
-        }
-    }
-
     public static void Quit()
     {
         if (_quitting)
@@ -391,9 +364,10 @@ public static class PanelManager
         KeepSettingsAbovePanels();
     }
 
-    static bool SyncDesktopIcons()
+    static bool SyncDesktopIcons() => ApplyDesktop(ShellDesktop.Enumerate());
+
+    static bool ApplyDesktop(IReadOnlyList<DesktopIcon> icons)
     {
-        var icons = ShellDesktop.Enumerate();
         var renamed = PreserveRenames(icons);
         var changed = renamed || icons.Count != _desktopIcons.Count
             || icons.Where((icon, index) => !icon.ParsingName.Equals(_desktopIcons.ElementAtOrDefault(index)?.ParsingName, StringComparison.OrdinalIgnoreCase)).Any();
@@ -504,17 +478,121 @@ public static class PanelManager
                 return;
             }
 
+            // Re-hide Explorer's icon list only. Z-order is handled in
+            // WM_WINDOWPOSCHANGING; sinking from this timer stalls the cursor.
             DesktopHost.EnsureHidden();
-            if (!AnyInteracting())
-            {
-                SinkToDesktop();
-            }
-
-            KeepSettingsAbovePanels();
         }
         catch
         {
             // Explorer can be mid-restart. The next tick tries again.
+        }
+    }
+
+    static void RequestDesktopScan()
+    {
+        if (_quitting || _dispatcher is null || Interlocked.Exchange(ref _scanPending, 1) == 1)
+        {
+            return;
+        }
+
+        var folders = _layout.Panels
+            .Where(panel => panel.Kind == PanelKind.Folder)
+            .Select(panel => panel.FolderPath)
+            .ToArray();
+        EnsureScanner();
+        ScanQueue.Add(() => RunDesktopScan(folders));
+    }
+
+    static void EnsureScanner()
+    {
+        if (_scanThread is not null)
+        {
+            return;
+        }
+
+        var thread = new Thread(ScanLoop)
+        {
+            IsBackground = true,
+            Name = "DesktopPanels.Shell"
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        _scanThread = thread;
+    }
+
+    static void ScanLoop()
+    {
+        foreach (var work in ScanQueue.GetConsumingEnumerable())
+        {
+            try
+            {
+                work();
+            }
+            catch
+            {
+                // RunDesktopScan clears the pending flag if it never posts back.
+            }
+        }
+    }
+
+    static void RunDesktopScan(string?[] folders)
+    {
+        IReadOnlyList<ShellDesktop.ListedIcon>? listed = null;
+        var posted = false;
+        try
+        {
+            try
+            {
+                listed = ShellDesktop.ListDesktop();
+                foreach (var folder in folders)
+                {
+                    ShellDesktop.PrefetchFolder(folder);
+                }
+            }
+            catch
+            {
+                listed = null;
+            }
+
+            var snapshot = listed;
+            posted = _dispatcher is not null && _dispatcher.TryEnqueue(() => ApplyDesktopScan(snapshot));
+        }
+        finally
+        {
+            if (!posted)
+            {
+                Interlocked.Exchange(ref _scanPending, 0);
+            }
+        }
+    }
+
+    static void ApplyDesktopScan(IReadOnlyList<ShellDesktop.ListedIcon>? listed)
+    {
+        try
+        {
+            if (_quitting || listed is null)
+            {
+                return;
+            }
+
+            if (ApplyDesktop(ShellDesktop.Materialize(listed)))
+            {
+                LayoutStore.Save(_layout);
+                AppState.NotifyIconsChanged();
+            }
+
+            foreach (var window in _windows.Values)
+            {
+                window.RefreshLiveContent();
+            }
+        }
+        catch
+        {
+            // Explorer can be restarting. The timer retries.
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _scanPending, 0);
         }
     }
 }

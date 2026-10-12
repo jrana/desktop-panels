@@ -69,9 +69,6 @@ public static class NativeWindow
 
     public const uint GwHwndNext = 2;
     public const uint GwHwndPrev = 3;
-    public const int WsExAppWindow = 0x00040000;
-    const int DwmwaCloaked = 14;
-
     public static RectNative WorkArea(IntPtr hwnd)
     {
         var monitor = MonitorFromWindow(hwnd, 2);
@@ -103,8 +100,8 @@ public static class NativeWindow
     [DllImport("dwmapi.dll")]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
 
-    [DllImport("dwmapi.dll")]
-    static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+    [DllImport("user32.dll")]
+    static extern bool IsIconic(IntPtr hWnd);
 
     const uint WmNcCalcSize = 0x0083;
     static readonly Dictionary<IntPtr, nint> PreviousWndProcs = [];
@@ -177,51 +174,6 @@ public static class NativeWindow
         SetWindowPos(hwnd, previous, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpNoActivate);
     }
 
-    public static bool NeedsDesktopPin(IntPtr hwnd, Func<IntPtr, bool> isOurs)
-    {
-        var below = GetWindow(hwnd, GwHwndNext);
-        while (below != IntPtr.Zero)
-        {
-            if (isOurs(below) || !IsWindowVisible(below) || IsCloaked(below))
-            {
-                below = GetWindow(below, GwHwndNext);
-                continue;
-            }
-
-            var ex = GetWindowLong(below, GwlExStyle);
-            if ((ex & WsExToolWindow) != 0)
-            {
-                below = GetWindow(below, GwHwndNext);
-                continue;
-            }
-
-            var className = ClassName(below);
-            if (className is "Progman" or "WorkerW")
-            {
-                return false;
-            }
-
-            if (className is "Shell_TrayWnd" or "Shell_SecondaryTrayWnd")
-            {
-                below = GetWindow(below, GwHwndNext);
-                continue;
-            }
-
-            var style = GetWindowLong(below, GwlStyle);
-            if ((style & WsCaption) != 0 || (ex & WsExAppWindow) != 0 || className is "ApplicationFrameWindow")
-            {
-                return true;
-            }
-
-            below = GetWindow(below, GwHwndNext);
-        }
-
-        return false;
-    }
-
-    static bool IsCloaked(IntPtr hwnd) =>
-        DwmGetWindowAttribute(hwnd, DwmwaCloaked, out var cloaked, sizeof(int)) == 0 && cloaked != 0;
-
     static string ClassName(IntPtr hwnd)
     {
         var name = new StringBuilder(256);
@@ -250,11 +202,6 @@ public static class NativeWindow
             }
         }
 
-        if (msg == WmWindowPosChanging)
-        {
-            PinBelowSettings(hwnd, lParam);
-        }
-
         if (msg == WmNcCalcSize || msg == 0x0085)
         {
             return 0;
@@ -265,35 +212,84 @@ public static class NativeWindow
             return 1;
         }
 
-        if (!PreviousWndProcs.TryGetValue(hwnd, out var previous))
+        var handled = PreviousWndProcs.TryGetValue(hwnd, out var previous)
+            ? CallWindowProc(previous, hwnd, msg, wParam, lParam)
+            : DefWindowProc(hwnd, msg, wParam, lParam);
+        if (msg == WmWindowPosChanging)
         {
-            return DefWindowProc(hwnd, msg, wParam, lParam);
+            // The raise is still pending. Cancel it here so nothing later calls
+            // SetWindowPos or DwmGetWindowAttribute while the pointer is moving.
+            KeepOnDesktop(hwnd, lParam);
         }
 
-        return CallWindowProc(previous, hwnd, msg, wParam, lParam);
+        return handled;
     }
 
-    static void PinBelowSettings(IntPtr hwnd, nint lParam)
+    static void KeepOnDesktop(IntPtr hwnd, nint lParam)
     {
         if (SuspendZOrder || !PanelManager.IsPanelWindow(hwnd))
         {
             return;
         }
 
-        var lowest = PanelManager.LowestSettingsWindow();
-        if (lowest == IntPtr.Zero)
-        {
-            return;
-        }
-
         var pos = Marshal.PtrToStructure<WindowPos>(lParam);
-        if ((pos.flags & SwpNoZOrder) != 0 || StaysBelowSettings(pos.hwndInsertAfter, lowest))
+        if ((pos.flags & SwpNoZOrder) != 0)
         {
             return;
         }
 
-        pos.hwndInsertAfter = lowest;
+        var lowest = PanelManager.LowestSettingsWindow();
+        if (lowest != IntPtr.Zero)
+        {
+            if (StaysBelowSettings(pos.hwndInsertAfter, lowest))
+            {
+                return;
+            }
+
+            pos.hwndInsertAfter = lowest;
+            Marshal.StructureToPtr(pos, lParam, false);
+            return;
+        }
+
+        if (!CoversAnotherApp(hwnd))
+        {
+            pos.flags |= SwpNoZOrder;
+            Marshal.StructureToPtr(pos, lParam, false);
+            return;
+        }
+
+        pos.hwndInsertAfter = HwndBottom;
         Marshal.StructureToPtr(pos, lParam, false);
+    }
+
+    static bool CoversAnotherApp(IntPtr hwnd)
+    {
+        var below = GetWindow(hwnd, GwHwndNext);
+        while (below != IntPtr.Zero)
+        {
+            if (PanelManager.IsPanelWindow(below) || !IsWindowVisible(below) || IsIconic(below))
+            {
+                below = GetWindow(below, GwHwndNext);
+                continue;
+            }
+
+            var className = ClassName(below);
+            if (className is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd")
+            {
+                return false;
+            }
+
+            var ex = GetWindowLong(below, GwlExStyle);
+            if ((ex & WsExToolWindow) != 0)
+            {
+                below = GetWindow(below, GwHwndNext);
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     static bool StaysBelowSettings(IntPtr insertAfter, IntPtr lowestSettings)
