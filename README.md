@@ -4,6 +4,10 @@ Desktop Panels is a Windows app that replaces the usual desktop icon grid with m
 
 The layout is saved automatically and restored the next time the app starts. Quitting, or an unexpected exit, puts the original desktop icons back.
 
+One layout, sitting on the wallpaper: a slideshow, clocks for two cities plus an analog face, weather with a weekly forecast, and shortcut panels grouped by use.
+
+![Desktop Panels arranged as a slideshow, clocks, weather, and shortcut groups](docs/example.jpg)
+
 ## Panels
 
 Create panels from the system tray, or from the add button that appears when you hover a panel.
