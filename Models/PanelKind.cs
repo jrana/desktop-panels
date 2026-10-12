@@ -6,5 +6,6 @@ public enum PanelKind
     Folder,
     Slideshow,
     Clock,
-    Weather
+    Weather,
+    Date
 }

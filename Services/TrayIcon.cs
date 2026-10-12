@@ -30,6 +30,7 @@ public sealed class TrayIcon : IDisposable
     const int IdSlideshow = 3;
     const int IdClock = 4;
     const int IdWeather = 5;
+    const int IdDate = 9;
     const int IdEdit = 6;
     const int IdIconsToggle = 7;
     const int IdQuit = 8;
@@ -122,6 +123,7 @@ public sealed class TrayIcon : IDisposable
         AppendMenu(menu, MfString, IdFolder, "New folder panel");
         AppendMenu(menu, MfString, IdSlideshow, "New slideshow panel");
         AppendMenu(menu, MfString, IdClock, "New clock");
+        AppendMenu(menu, MfString, IdDate, "New date panel");
         AppendMenu(menu, MfString, IdWeather, "New weather panel");
         AppendMenu(menu, MfSeparator, 0, null);
         AppendMenu(menu, MfString | (AppState.IsEditing ? MfChecked : 0), IdEdit, "Edit panels");
@@ -148,6 +150,9 @@ public sealed class TrayIcon : IDisposable
                 break;
             case IdClock:
                 PanelManager.AddPanel(Models.PanelKind.Clock);
+                break;
+            case IdDate:
+                PanelManager.AddPanel(Models.PanelKind.Date);
                 break;
             case IdWeather:
                 PanelManager.AddPanel(Models.PanelKind.Weather);

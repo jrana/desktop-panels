@@ -24,6 +24,10 @@ public sealed class PanelModel
     public string ClockFontFamily { get; set; } = "Segoe UI Variable Display";
     public double ClockFontSize { get; set; } = 44;
     public string ClockFace { get; set; } = "Digital";
+    public string DateFace { get; set; } = "Date";
+    public string DateFormat { get; set; } = "MMM dd, yyyy";
+    public bool ShowWeekday { get; set; } = true;
+    public string DateFontFamily { get; set; } = "Segoe UI Variable Display";
     public string City { get; set; } = "";
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }

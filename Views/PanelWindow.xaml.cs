@@ -25,6 +25,7 @@ public sealed partial class PanelWindow : Window
     IconGridView? _icons;
     SlideshowView? _slideshow;
     ClockView? _clock;
+    DateView? _date;
     WeatherView? _weather;
     SettingsPanel? _settings;
     bool _allowClose;
@@ -184,6 +185,11 @@ public sealed partial class PanelWindow : Window
                 BodyHost.Children.Add(_clock);
                 _clock.Load(_model);
                 break;
+            case PanelKind.Date:
+                _date = new DateView();
+                BodyHost.Children.Add(_date);
+                _date.Load(_model);
+                break;
             case PanelKind.Weather:
                 _weather = new WeatherView();
                 BodyHost.Children.Add(_weather);
@@ -213,6 +219,9 @@ public sealed partial class PanelWindow : Window
                 break;
             case PanelKind.Clock:
                 _clock?.Load(_model);
+                break;
+            case PanelKind.Date:
+                _date?.Load(_model);
                 break;
             case PanelKind.Weather:
                 _weather?.Load(_model);
@@ -734,6 +743,7 @@ public sealed partial class PanelWindow : Window
         PanelKind.Slideshow => "Slideshow",
         PanelKind.Clock => "Clock",
         PanelKind.Weather => "Weather",
+        PanelKind.Date => "Date",
         _ => "Panel"
     };
 

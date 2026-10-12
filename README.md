@@ -44,6 +44,15 @@ Show the time for the local zone or any time zone installed on the PC.
 - A city label you can show or hide.
 - Any font installed on the computer.
 
+### Date panels
+
+Show today's date, or a month calendar.
+
+- Date text uses a chosen format. The default is MMM DD, YYYY, such as Oct 12, 2026.
+- The weekday can sit under the date in a smaller size.
+- The calendar moves by month. Today's date is marked.
+- Any font installed on the computer. The type scales to fit the panel, the same way a clock does.
+
 ### Weather panels
 
 Show the current conditions and an illustrated forecast for a city. Weather comes from [Open-Meteo](https://open-meteo.com/) and does not need an API key.
@@ -67,7 +76,7 @@ Show the current conditions and an illustrated forecast for a city. Weather come
 
 ## Desktop integration
 
-- A tray icon opens the menu: new shortcut, folder, slideshow, clock, or weather panel, show or hide desktop icons, and quit.
+- A tray icon opens the menu: new shortcut, folder, slideshow, clock, date, or weather panel, show or hide desktop icons, and quit.
 - Showing desktop icons brings Explorer’s icon list back without quitting. Hiding them returns you to the panels.
 - One instance runs at a time. Starting the app again does nothing if it is already open.
 - Optional **Start with Windows**, from any panel’s settings. The app uses a Startup-folder shortcut.

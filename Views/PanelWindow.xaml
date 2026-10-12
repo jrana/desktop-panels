@@ -48,6 +48,7 @@
                                 <MenuFlyoutItem Text="Folder" Tag="Folder" Click="OnAddPanel" />
                                 <MenuFlyoutItem Text="Slideshow" Tag="Slideshow" Click="OnAddPanel" />
                                 <MenuFlyoutItem Text="Clock" Tag="Clock" Click="OnAddPanel" />
+                                <MenuFlyoutItem Text="Date" Tag="Date" Click="OnAddPanel" />
                                 <MenuFlyoutItem Text="Weather" Tag="Weather" Click="OnAddPanel" />
                             </MenuFlyout>
                         </Button.Flyout>
